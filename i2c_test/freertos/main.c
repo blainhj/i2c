@@ -68,6 +68,9 @@
 #include "gicv2.h"
 #endif
 
+#include "delay.h"
+#include "meson_i2c.h"
+
 #ifdef GUEST
 #include <tick_timer.h>
 #endif
@@ -251,6 +254,32 @@ static void vTestTask(void *pvParameters)
 }
 #endif
 /*-----------------------------------------------------------*/
+void set_pinmux(void)
+{
+	xPinmuxSet(GPIOM_12, PIN_FUNC1);
+	xPinmuxSet(GPIOM_13, PIN_FUNC1);
+
+	/* the external pull up is enough, the internal pull up should be off
+	 * It is not good setting PULL UP too strong.
+	 */
+	xPinconfSet(GPIOM_12, PINF_CONFIG_DRV_STRENGTH_3 | PINF_CONFIG_BIAS_DISABLE);
+	xPinconfSet(GPIOM_13, PINF_CONFIG_DRV_STRENGTH_3 | PINF_CONFIG_BIAS_DISABLE);
+}
+
+void i2c_test(void)
+{
+	uint8_t val = 0x33;
+	uint8_t r_val;
+
+	xI2cMesonPortInit(I2C_M2);
+
+	xI2cMesonWrite(0x50, 0x2, &val, 1);
+
+	xI2cMesonRead(0x50, 0x2, &r_val, 1);
+
+	iprintf("Read the val = 0x%x\n", r_val);
+}
+
 int main( void )
 {
 	vPortRtosInfoUpdateStatus(eRtosStat_Initializing);
@@ -259,11 +288,19 @@ int main( void )
 #if configEnable_Console
 	xTaskCreate( vConsoleTask, "console", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY - 1, &console_thread );
 #endif
+	/* Delay is required here, if not, "test i2c" print is gone */
+	vUdelay(10000);
+	iprintf("test i2c\n");
+	set_pinmux();
+	i2c_test();
+	iprintf("test i2c over\n");
+	vUdelay(10000);
 #if ENABLE_MODULE_NPU
 	xTaskCreate( vNpuMainTask, "npu", ( size_t )configMINIMAL_STACK_SIZE*60, NULL, mainCHECK_TASK_PRIORITY - 1, NULL );
 #else
 	xTaskCreate( vTestTask, "test", configMINIMAL_STACK_SIZE, NULL, mainCHECK_TASK_PRIORITY, NULL);
 #endif
+
 	/* Start the scheduler. */
 	vTaskStartScheduler();
 
