@@ -71,6 +71,9 @@
 #define I2C_DEBUG			0
 #define I2C_FIFO_WRITE			0
 
+uint32_t wfifo[110];
+uint32_t tfifo[110];
+
 typedef enum { false, true }bool;
 
 enum {
@@ -140,6 +143,14 @@ struct meson_i2c_platdata c2_i2c_data[] = {
 
 void meson_i2c_dump_regs(void)
 {
+	uint32_t i;
+
+	for (i = 0; i < 110;i++)
+		printf("wf[%d] = 0x%08x\n", i, wfifo[i]);
+
+	for (i = 0; i < 110;i++)
+		printf("tf[%d] = 0x%08x\n", i, tfifo[i]);
+
 	printf("i2c reg : 0x%x = 0x%x\n", &i2cs[current_id].regs->ctrl, i2cs[current_id].regs->ctrl);
 	printf("i2c reg : 0x%x = 0x%x\n", &i2cs[current_id].regs->slave_addr, i2cs[current_id].regs->slave_addr);
 	printf("i2c reg : 0x%x = 0x%x\n", &i2cs[current_id].regs->tok_list0, i2cs[current_id].regs->tok_list0);
@@ -254,6 +265,7 @@ static void meson_i2c_fifo_polling_get_data(uint8_t *buf, uint32_t len)
 	}
 }
 
+uint32_t wn = 0;
 /*
  * Write data for the current transfer (which can be at most 8 bytes)
  * to the device internal buffer.
@@ -272,6 +284,10 @@ static void meson_i2c_put_data(uint8_t *buf, uint32_t len)
 	i2cs[current_id].regs->tok_wdata0 = wdata0;
 	i2cs[current_id].regs->tok_wdata1 = wdata1;
 
+	wfifo[wn] = i2cs[current_id].regs->tok_wdata0;
+	wn++;
+	wfifo[wn] = i2cs[current_id].regs->tok_wdata1;
+	wn++;
 #if I2C_FIFO_WRITE
 	printf("meson i2c: write data wdata0: 0x%x, wdata1: 0x%x, len: %d. Wf cnt = %d\n",
 		wdata0, wdata1, len, readl(&i2cs[current_id].regs->fifo_st0) >> 4 & 0xf);
@@ -381,11 +397,16 @@ static int32_t meson_i2c_xfer_msg(struct i2c_msg *msg, uint32_t last)
 	return 0;
 }
 
+uint32_t  tn = 0;
 static void meson_i2c_fill_token_list(void)
 {
 	i2cs[current_id].regs->tok_list0 = i2cs[current_id].tokens[0];
 	i2cs[current_id].regs->tok_list1 = i2cs[current_id].tokens[1];
 
+	tfifo[tn] = i2cs[current_id].regs->tok_list0;
+	tn++;
+	tfifo[tn] = i2cs[current_id].regs->tok_list1;
+	tn++;
 #if I2C_FIFO_WRITE
 	printf("If it is right, Disable I2C_FIFO_WRITE. list0 = 0x%x, list1 = 0x%x, tf_cnt =%d\n", i2cs[current_id].regs->tok_list0, i2cs[current_id].regs->tok_list1, (readl(&i2cs[current_id].regs->fifo_st0) >> 8) & 0x7);
 #endif
