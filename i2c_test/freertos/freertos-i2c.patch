@@ -1,0 +1,68 @@
+diff --git a/demos/amlogic/cortex_m4/azp1_m4b/main.c b/demos/amlogic/cortex_m4/azp1_m4b/main.c
+index 8b760b61..92c0558f 100644
+--- a/demos/amlogic/cortex_m4/azp1_m4b/main.c
++++ b/demos/amlogic/cortex_m4/azp1_m4b/main.c
+@@ -53,6 +53,8 @@
+ #include "backtrace.h"
+ #include "cpuload.h"
+ #include "interrupts.h"
++#include "meson_i2c.h"
++#include "gpio.h"
+ #if ENABLE_MODULE_SPI
+ #include "spicc.h"
+ #include "spi.h"
+@@ -147,8 +149,27 @@ static void vSpicc0Init(void)
+ }
+ #endif /* end of ENABLE_MODULE_SPI */
+ 
++void set_i2c4_pinmux(void)
++{
++#if 1
++       // set pinmux
++       iprintf("set i2c2 pinmux\n");
++       xPinmuxSet(GPIOD_4, PIN_FUNC1);
++       xPinmuxSet(GPIOD_5, PIN_FUNC1);
++       //set ds and pull up
++       xPinconfSet(GPIOD_4, PINF_CONFIG_BIAS_PULL_UP | PINF_CONFIG_DRV_STRENGTH_3);
++       xPinconfSet(GPIOD_5, PINF_CONFIG_BIAS_PULL_UP | PINF_CONFIG_DRV_STRENGTH_3);
++       iprintf("set i2c2 pinmux over\n");
++       iprintf(" regk = %x\n", REG32(PADCTRL_PIN_MUX_REGK));
++       iprintf(" regk pullen = %x\n", REG32(PADCTRL_GPIOD_PULL_EN));
++       iprintf(" regk pullup = %x\n", REG32(PADCTRL_GPIOD_PULL_UP));
++#endif
++}
++
+ int main( void )
+ {
++	unsigned int val, val_r = 0;
++
+     /* Configure the clocks, UART and GPIO. */
+     prvSetupHardware();
+ 
+@@ -165,6 +186,26 @@ int main( void )
+  #if ENABLE_CPULOAD
+     CPULD_vidInit();
+  #endif
++
++       set_i2c4_pinmux();
++
++       iprintf("i2c init\n");
++       xI2cMesonPortInit(10);
++
++
++       iprintf("i2c set speed\n");
++        xI2cMesonSetBusSpeed(100000);
++       val = 0xf3;
++
++       iprintf("i2c write\n");
++        xI2cMesonWrite(0x51, 0x3, &val, 1);
++
++       iprintf("i2c read\nn");
++       iprintf("before the reading val = %x\n", val_r);
++       xI2cMesonRead(0x51, 0x3, &val_r, 1);
++
++       iprintf("the reading val = %x\n", val_r);
++
+     if (xTaskCreate( vPrintTask, "Print1", configMINIMAL_STACK_SIZE, NULL,
+         (mainCHECK_TASK_PRIORITY - 1) | portPRIVILEGE_BIT, NULL ) != pdPASS)
+     {
