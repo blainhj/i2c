@@ -1,0 +1,160 @@
+diff --git a/demos/amlogic/cortex_m4/azp1_m4a/main.c b/demos/amlogic/cortex_m4/azp1_m4a/main.c
+index 49d6ec14..1af1f77e 100644
+--- a/demos/amlogic/cortex_m4/azp1_m4a/main.c
++++ b/demos/amlogic/cortex_m4/azp1_m4a/main.c
+@@ -59,6 +59,10 @@
+ #include "spi_plat.h"
+ #endif
+ 
++#include "meson_i2c.h"
++#include "gpio.h"
++#include "delay.h"
++
+ /*#define   DHRYSTONE_TEST*/
+ 
+ /* Delay between cycles of the 'check' task. */
+@@ -150,8 +154,26 @@ static void vSpicc0Init(void)
+ }
+ #endif /* end of ENABLE_MODULE_SPI */
+ 
++void set_i2c4_pinmux(void)
++{
++#if 1
++       // set pinmux
++       iprintf("...15-37 set i2c2 pinmux\n");
++       xPinmuxSet(GPIOK_19, PIN_FUNC1);
++       xPinmuxSet(GPIOK_20, PIN_FUNC1);
++       //set ds and pull up
++       xPinconfSet(GPIOK_19, PINF_CONFIG_BIAS_PULL_UP | PINF_CONFIG_DRV_STRENGTH_3);
++       xPinconfSet(GPIOK_20, PINF_CONFIG_BIAS_PULL_UP | PINF_CONFIG_DRV_STRENGTH_3);
++       iprintf("set i2c2 pinmux over\n");
++       iprintf(" regk = %x\n", REG32(PADCTRL_PIN_MUX_REGK));
++       iprintf(" regk pullen = %x\n", REG32(PADCTRL_GPIOK_PULL_EN));
++       iprintf(" regk pullup = %x\n", REG32(PADCTRL_GPIOK_PULL_UP));
++#endif
++}
++
+ int main( void )
+ {
++  unsigned int val, val_r = 0;
+     /* Configure the clocks, UART and GPIO. */
+     prvSetupHardware();
+ 
+@@ -168,6 +190,30 @@ int main( void )
+  #if ENABLE_CPULOAD
+     CPULD_vidInit();
+  #endif
++
++       set_i2c4_pinmux();
++
++       iprintf("i2c init\n");
++       //iprintf("soc = %d\n", SOC);
++       xI2cMesonPortInit(I2C_M2);
++
++
++       iprintf("i2c set speed\n");
++        xI2cMesonSetBusSpeed(100000);
++       val = 0xf3;
++
++       iprintf("i2c write\n");
++        xI2cMesonWrite(0x51, 0x3, &val, 1);
++
++	vMdelay(20);
++       iprintf("i2c read\nn");
++       iprintf("before the reading val = %x\n", val_r);
++       xI2cMesonRead(0x51, 0x3, &val_r, 1);
++
++       iprintf("the reading val = %x\n", val_r);
++
++
++
+     if (xTaskCreate( vPrintTask, "Print1", configMINIMAL_STACK_SIZE, NULL,
+         (mainCHECK_TASK_PRIORITY - 1) | portPRIVILEGE_BIT, NULL ) != pdPASS)
+     {
+diff --git a/demos/amlogic/xtensa_hifi/p1_hifi5a/boot/startdsp.c b/demos/amlogic/xtensa_hifi/p1_hifi5a/boot/startdsp.c
+index b757b63e..0d16ef50 100644
+--- a/demos/amlogic/xtensa_hifi/p1_hifi5a/boot/startdsp.c
++++ b/demos/amlogic/xtensa_hifi/p1_hifi5a/boot/startdsp.c
+@@ -70,9 +70,6 @@
+ #include "cpuload.h"
+ #endif
+ 
+-#include "meson_i2c.h"
+-#include "gpio.h"
+-
+ #if ENABLE_PSO
+ extern uint32_t pso_save_area[];
+ extern void pso_power_off(void);
+@@ -233,43 +230,8 @@ void vDspStatustask(void *pvParameters )
+     }
+ }
+ 
+-void set_i2c2_pinmux(void)
+-{
+-       // set pinmux
+-       printf("set i2c2 pinmux\n");
+-       xPinmuxSet(GPIOK_19, PIN_FUNC1);
+-       xPinmuxSet(GPIOK_20, PIN_FUNC1);
+-       //set ds and pull up
+-       xPinconfSet(GPIOK_19, PINF_CONFIG_BIAS_PULL_UP | PINF_CONFIG_DRV_STRENGTH_3);
+-       xPinconfSet(GPIOK_20, PINF_CONFIG_BIAS_PULL_UP | PINF_CONFIG_DRV_STRENGTH_3);
+-       printf("set i2c2 pinmux over\n");
+-       printf(" regk = %x\n", REG32(PADCTRL_PIN_MUX_REGK));
+-       printf(" regk pullen = %x\n", REG32(PADCTRL_GPIOK_PULL_EN));
+-       printf(" regk pullup = %x\n", REG32(PADCTRL_GPIOK_PULL_UP));
+-}
+-
+-void i2ctesttask(void *pvParameters )
+-{
+-	unsigned int val, val_r = 0;
+-    UNUSED(pvParameters);
+-       val = 0xf5;
+-
+-       //printf("i2c write\n");
+-    xI2cMesonWrite(0x51, 0x3, &val, 1);
+-       printf("i2c read\n");
+-vMdelay(20);
+-       printf("before the reading val = %x\n", val_r);
+-       xI2cMesonRead(0x51, 0x3, &val_r, 1);
+-
+-       printf("the reading val = %x\n", val_r);
+-
+-	vTaskSuspend(DspStatus_Handler);	
+-}
+-
+-
+ int main(void)
+ {
+-
+     printf("\ncold start lzq_0920 boot freertos...\n");
+ 
+     vPreHardwareInit();
+@@ -279,18 +241,6 @@ int main(void)
+     vBakLockInit(MAILBOX_BUF_MBOX21, 5);
+ #endif
+ 
+-       set_i2c2_pinmux();
+-
+-       printf("i2c init\n");
+-       //iprintf("soc = %d\n", SOC);
+-       xI2cMesonPortInit(I2C_M2);
+-
+-
+-       printf("i2c set speed\n");
+-        xI2cMesonSetBusSpeed(100000);
+-
+-
+-
+ #if ENABLE_MODULE_AUDIO_V2
+     xAudioHwInit();
+ #endif
+@@ -309,9 +259,6 @@ int main(void)
+ 
+     //xTaskCreate(vStart_task,"starttask",configMINIMAL_STACK_SIZE, NULL, 30, &StartTask_Handler);
+     xTaskCreate(vDspStatustask,"DspStatustask",configMINIMAL_STACK_SIZE, NULL, 5, &DspStatus_Handler);
+-   
+-
+-    xTaskCreate(i2ctesttask,"I2C task",configMINIMAL_STACK_SIZE, NULL, 5, &DspStatus_Handler);
+ 
+ 
+     vTaskStartScheduler();
